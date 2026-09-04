@@ -8,20 +8,18 @@ import { TestController } from './test/test.controller';
 import { PassportModule } from '@nestjs/passport';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { BranchesModule } from './branches/branches.module';
+import { ProductsModule } from './products/products.module';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
 @Module({
   imports: [
-    // Distributed tracing, auto-correlated logs, request/job metrics, error
-    // telemetry, alarms, and more — out of the box. Sign up at https://observe.nestjs.com
-    ObserveModule.forRoot({
-      appKey: 'YOUR_APP_KEY',
-      appSecret: 'YOUR_APP_SECRET',
-      serviceId: 'proyecto-autenticacion',
-    }),
+    
     PrismaModule,
     AuthModule,
+    BranchesModule,
+    ProductsModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
   ],
   controllers: [AppController, TestController],
