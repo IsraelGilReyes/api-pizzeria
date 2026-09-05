@@ -1,22 +1,23 @@
 import { Controller, Get, Post, Patch, Body, Param, ParseIntPipe, Request, UseGuards } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('orders')
-@UseGuards(RolesGuard) // Intercepta y valida los permisos por rol
+@UseGuards(JwtAuthGuard, RolesGuard) // Intercepta y valida JWT y roles
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
-  // SOLO el Gerente y el Cajero pueden registrar órdenes
+  // Solo Gerente y Cajero pueden crear órdenes
   @Post()
   @Roles('GERENTE', 'CAJERO')
   create(@Body() createOrderDto: CreateOrderDto, @Request() req: any) {
     return this.ordersService.create(createOrderDto, req.user.userId);
   }
 
-  // Consulta de pedidos disponible para personal autenticado
   @Get()
   findAll() {
     return this.ordersService.findAll();
@@ -27,13 +28,14 @@ export class OrdersController {
     return this.ordersService.findOne(id);
   }
 
-  // Actualización de estado del pedido 
+  // Actualización de estado del pedido por rol asignado
   @Patch(':id/status')
-  @Roles('GERENTE', 'CAJERO', 'REPARTIDOR') // Solo roles específicos pueden actualizar el estado
+  @Roles('GERENTE', 'CAJERO', 'REPARTIDOR', 'COCINA')
   updateStatus(
     @Param('id', ParseIntPipe) id: number,
-    @Body('status') status: string,
+    @Body() updateOrderStatusDto: UpdateOrderStatusDto,
+    @Request() req: any,
   ) {
-    return this.ordersService.updateStatus(id, status);
+    return this.ordersService.updateStatus(id, updateOrderStatusDto, req.user.role);
   }
 }

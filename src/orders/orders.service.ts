@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { OrderStatus, Role } from '@prisma/client';
+import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 
 @Injectable()
 export class OrdersService {
@@ -15,7 +17,7 @@ export class OrdersService {
       throw new NotFoundException(`Sucursal con ID ${branchId} no encontrada`);
     }
 
-    // 2. Calcular total verificando los precios de cada producto
+    // 2. Calcular total
     let total = 0;
     const orderItemsData = [];
 
@@ -34,13 +36,13 @@ export class OrdersService {
       });
     }
 
-    // 3. Crear la orden y sus items en la base de datos
+    // 3. Crear la orden e iniciar con el estado por defecto PENDIENTE
     return this.prisma.order.create({
       data: {
         userId,
         branchId,
         total,
-        status: 'PENDING',
+        status: OrderStatus.PENDIENTE,
         items: {
           create: orderItemsData,
         },
@@ -82,11 +84,38 @@ export class OrdersService {
     return order;
   }
 
-  async updateStatus(id: number, status: string) {
+  async updateStatus(id: number, updateOrderStatusDto: UpdateOrderStatusDto, userRole: Role) {
     await this.findOne(id);
+    const newStatus: OrderStatus = updateOrderStatusDto.status;
+
+    // Arreglo explícitamente tipado como OrderStatus[] para evitar errores de compilación
+    const allowedForCajeroAndRepartidor: OrderStatus[] = [
+      OrderStatus.ENVIADO,
+      OrderStatus.ENTREGADO,
+    ];
+
+    // Validación de permisos por rol para el cambio de estado
+    if (userRole === Role.GERENTE) {
+      // El Gerente puede cambiar a cualquier estado
+    } else if (userRole === Role.CAJERO || userRole === Role.REPARTIDOR) {
+      if (!allowedForCajeroAndRepartidor.includes(newStatus)) {
+        throw new ForbiddenException(
+          `El rol ${userRole} solo puede cambiar el estado a ENVIADO o ENTREGADO`,
+        );
+      }
+    } else if (userRole === Role.COCINA) {
+      if (newStatus !== OrderStatus.PREPARACION) {
+        throw new ForbiddenException(
+          'El personal de Cocina solo puede cambiar el estado a PREPARACION',
+        );
+      }
+    } else {
+      throw new ForbiddenException('No tienes permisos para modificar el estado del pedido');
+    }
+
     return this.prisma.order.update({
       where: { id },
-      data: { status },
+      data: { status: newStatus },
     });
   }
 }
