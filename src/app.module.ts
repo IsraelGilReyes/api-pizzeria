@@ -10,6 +10,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { BranchesModule } from './branches/branches.module';
 import { ProductsModule } from './products/products.module';
+import { OrdersModule } from './orders/orders.module';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -21,6 +22,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     BranchesModule,
     ProductsModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
+    OrdersModule,
   ],
   controllers: [AppController, TestController],
   providers: [AppService,
