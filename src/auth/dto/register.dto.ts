@@ -15,8 +15,8 @@ export class RegisterDto {
   password: string;
 
   @IsOptional()
-  @IsIn(['CAJERO', 'GERENTE', 'COCINA', 'REPARTIDOR'], { 
-    message: 'El rol debe ser: CAJERO, GERENTE, COCINA o REPARTIDOR' 
+  @IsIn(['CAJERO', 'COCINA', 'REPARTIDOR', 'GERENTE'], { 
+    message: 'El rol debe ser: CAJERO, COCINA, REPARTIDOR o GERENTE' 
   })
-  role?: 'CAJERO' | 'GERENTE' | 'COCINA' | 'REPARTIDOR';
+  role?: 'CAJERO' | 'COCINA' | 'REPARTIDOR' | 'GERENTE';
 }

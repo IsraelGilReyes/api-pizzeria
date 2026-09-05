@@ -11,6 +11,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { BranchesModule } from './branches/branches.module';
 import { ProductsModule } from './products/products.module';
 import { OrdersModule } from './orders/orders.module';
+import { CashRegisterModule } from './cash-register/cash-register.module';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -23,6 +24,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     ProductsModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     OrdersModule,
+    CashRegisterModule,
   ],
   controllers: [AppController, TestController],
   providers: [AppService,
