@@ -7,7 +7,6 @@ import { CashRegisterStatus, OrderStatus } from '@prisma/client';
 export class CashRegisterService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Inicializar Caja (Solo Gerente)
   async open(openDto: OpenCashRegisterDto, userId: number) {
     // 1. Verificar si ya existe una caja abierta en la sucursal
     const activeRegister = await this.prisma.cashRegister.findFirst({
@@ -28,6 +27,8 @@ export class CashRegisterService {
         branchId: openDto.branchId,
         openedById: userId,
         status: CashRegisterStatus.OPEN,
+        generatedAmount: 0,
+        totalAmount: openDto.initialAmount,
       },
       include: {
         openedBy: { select: { id: true, name: true, email: true } },
@@ -36,10 +37,21 @@ export class CashRegisterService {
     });
   }
 
-  // Finalizar Caja (Solo Gerente)
   async close(id: number) {
     const register = await this.prisma.cashRegister.findUnique({
       where: { id },
+      include: {
+        orders: {
+          where: {
+            status: OrderStatus.ENTREGADO,
+          },
+          select: {
+            total: true,
+          },
+        },
+        openedBy: { select: { id: true, name: true, email: true } },
+        branch: true,
+      },
     });
 
     if (!register) {
@@ -52,22 +64,14 @@ export class CashRegisterService {
 
     const closeTime = new Date();
 
-    // Sumar el total de las órdenes ENTREGADAS desde que se abrió la caja
-    const ordersSummary = await this.prisma.order.aggregate({
-      _sum: {
-        total: true,
-      },
-      where: {
-        branchId: register.branchId,
-        status: OrderStatus.ENTREGADO,
-        createdAt: {
-          gte: register.openedAt,
-          lte: closeTime,
-        },
-      },
-    });
+    // Calcular el total de órdenes ENTREGADAS asociadas a esta caja
+    let generatedAmount = 0;
+    if (register.orders && register.orders.length > 0) {
+      generatedAmount = register.orders.reduce((sum, order) => {
+        return sum + Number(order.total);
+      }, 0);
+    }
 
-    const generatedAmount = ordersSummary._sum.total ? Number(ordersSummary._sum.total) : 0;
     const initialAmount = Number(register.initialAmount);
     const totalAmount = initialAmount + generatedAmount;
 
@@ -87,7 +91,6 @@ export class CashRegisterService {
     });
   }
 
-  // Consultar caja activa por sucursal
   async getActiveRegister(branchId: number) {
     const register = await this.prisma.cashRegister.findFirst({
       where: {
@@ -96,6 +99,17 @@ export class CashRegisterService {
       },
       include: {
         openedBy: { select: { id: true, name: true, email: true } },
+        branch: true,
+        orders: {
+          where: {
+            status: OrderStatus.ENTREGADO,
+          },
+          select: {
+            id: true,
+            total: true,
+            createdAt: true,
+          },
+        },
       },
     });
 
