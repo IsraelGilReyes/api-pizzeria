@@ -1,8 +1,9 @@
 {
   "compilerOptions": {
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "resolvePackageJsonExports": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "ignoreDeprecations": "6.0",
+    "resolvePackageJsonExports": false,
     "esModuleInterop": true,
     "isolatedModules": true,
     "declaration": true,
@@ -14,9 +15,18 @@
     "types": ["node", "jest"],
     "sourceMap": true,
     "outDir": "./dist",
+    "rootDir": "./src",
     "incremental": true,
     "skipLibCheck": true,
     "strict": true,
     "strictPropertyInitialization": false
-  }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "prisma",
+    "jest.config.ts"
+  ]
 }
