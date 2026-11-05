@@ -7,6 +7,9 @@ async function bootstrap() {
     instrument: ObserveInstrument,
   });
 
+    // 👇 AGREGA ESTA LÍNEA AQUÍ
+  app.enableCors()
+
   const config = new DocumentBuilder()
     .setTitle('Pizzeria API')
     .setDescription('Documentación de la API REST de Pizzeria')

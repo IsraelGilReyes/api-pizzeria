@@ -34,13 +34,16 @@ export class AuthService {
         email: data.email,
         password: hashedPassword,
         role: this.mapRole(data.role),
+        branchId: data.branchId ?? null, // 👈 Asegúrate de guardar el branchId si viene en el DTO
       },
+      include: { branch: true }, // 👈 Incluimos la relación para enviarla al frontend
     });
 
     const token = this.jwtService.sign({ 
       sub: user.id, 
       email: user.email,
       role: user.role,
+      branchId: user.branchId, // 👈 Recomendado incluirlo también en el token JWT si lo usas
     });
     
     console.log(`✅ Usuario registrado: ${user.email} con rol: ${user.role}`);
@@ -52,18 +55,18 @@ export class AuthService {
         name: user.name,
         email: user.email,
         role: user.role,
+        branchId: user.branchId,       // 👈 ENVIADO AL FRONTEND
+        branch: user.branch,           // 👈 ENVIADO AL FRONTEND
       }
     };
   }
 
-  // Nuevo método para registro de gerentes (solo para admin/gerentes)
+  // Método para registro de gerentes
   async registerManager(data: RegisterDto, currentUser: any) {
-    // Verificar que el usuario actual es GERENTE
     if (currentUser.role !== Role.GERENTE) {
       throw new ForbiddenException('Solo los gerentes pueden registrar otros gerentes');
     }
 
-    // Verificar que se está intentando registrar un gerente
     if (data.role !== 'GERENTE') {
       throw new BadRequestException('Este método solo permite registrar usuarios con rol GERENTE');
     }
@@ -81,13 +84,16 @@ export class AuthService {
         email: data.email,
         password: hashedPassword,
         role: Role.GERENTE,
+        branchId: data.branchId ?? null, // 👈 Incluimos branchId
       },
+      include: { branch: true },
     });
 
     const token = this.jwtService.sign({ 
       sub: user.id, 
       email: user.email,
       role: user.role,
+      branchId: user.branchId,
     });
     
     console.log(`✅ Gerente registrado: ${user.email}`);
@@ -99,13 +105,14 @@ export class AuthService {
         name: user.name,
         email: user.email,
         role: user.role,
+        branchId: user.branchId,
+        branch: user.branch,
       }
     };
   }
 
-  // Método administrativo exclusivo para gerentes
+  // Método administrativo para actualizar rol
   async updateUserRole(userId: number, updateUserRoleDto: UpdateUserRoleDto, currentUser: any) {
-    // Verificar que el usuario actual es GERENTE
     if (currentUser.role !== Role.GERENTE) {
       throw new ForbiddenException('Solo los gerentes pueden cambiar roles de usuarios');
     }
@@ -113,7 +120,6 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuario no encontrado');
 
-    // No permitir que un gerente cambie el rol de otro gerente (excepto si es necesario)
     if (user.role === Role.GERENTE && currentUser.id !== userId) {
       throw new ForbiddenException('No puedes modificar el rol de otro gerente');
     }
@@ -126,14 +132,17 @@ export class AuthService {
         name: true,
         email: true,
         role: true,
+        branchId: true, // 👈 Incluimos branchId aquí también
+        branch: true,
       },
     });
   }
 
-  // Método original de login (sin cambios)
+  // Método de login actualizado para incluir branchId y branch
   async login(data: { email: string; password: string }) {
     const user = await this.prisma.user.findUnique({ 
-      where: { email: data.email } 
+      where: { email: data.email },
+      include: { branch: true }, // 👈 Hacemos include para traer la sucursal asociada
     });
     if (!user) throw new UnauthorizedException('Credenciales inválidas');
 
@@ -144,9 +153,10 @@ export class AuthService {
       sub: user.id, 
       email: user.email,
       role: user.role,
+      branchId: user.branchId,
     });
     
-    console.log(`Usuario logueado: ${user.email} con rol: ${user.role}`);
+    console.log(`Usuario logueado: ${user.email} con rol: ${user.role} y sucursal ID: ${user.branchId}`);
     
     return { 
       access_token: token,
@@ -155,6 +165,8 @@ export class AuthService {
         name: user.name,
         email: user.email,
         role: user.role,
+        branchId: user.branchId, // 👈 ENVIADO AL FRONTEND
+        branch: user.branch,     // 👈 ENVIADO AL FRONTEND
       }
     };
   }

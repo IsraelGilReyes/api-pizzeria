@@ -71,4 +71,16 @@ export class CashRegisterController {
   ) {
     return this.cashRegisterService.getActiveRegister(branchId);
   }
+
+  // Consultar todas las cajas (historial) de una sucursal
+  @Get('branch/:branchId')
+  @ApiOperation({
+    summary: 'Obtener historial de cajas de una sucursal',
+  })
+  @Roles(Role.GERENTE, Role.CAJERO)
+  findAllByBranch(
+    @Param('branchId', ParseIntPipe) branchId: number,
+  ) {
+    return this.cashRegisterService.findAllByBranch(branchId);
+  }
 }

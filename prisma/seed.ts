@@ -5,11 +5,8 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log('🌱 Iniciando la carga de datos iniciales (Seed)...');
-
-  // 1. Encriptar contraseña para el gerente inicial
   const hashedPassword = await bcrypt.hash('admin123', 10);
 
-  // 2. Crear o verificar la sucursal inicial
   const branch = await prisma.branch.upsert({
     where: { id: 1 },
     update: {},
@@ -19,7 +16,6 @@ async function main() {
     },
   });
 
-  // 3. Crear o verificar el primer usuario GERENTE
   const gerente = await prisma.user.upsert({
     where: { email: 'gerente@pizzeria.com' },
     update: {},

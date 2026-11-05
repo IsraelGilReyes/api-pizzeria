@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsString, IsIn, MinLength, IsOptional } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, IsIn, MinLength, IsOptional, IsInt } from 'class-validator';
 
 export class RegisterDto {
   @IsString()
@@ -19,4 +19,8 @@ export class RegisterDto {
     message: 'El rol debe ser: CAJERO, COCINA, REPARTIDOR o GERENTE' 
   })
   role?: 'CAJERO' | 'COCINA' | 'REPARTIDOR' | 'GERENTE';
+
+  @IsOptional()
+  @IsInt({ message: 'El ID de la sucursal debe ser un número entero' })
+  branchId?: number; // 👈 NUEVO: Permite asociar o registrar con una sucursal opcionalmente
 }
