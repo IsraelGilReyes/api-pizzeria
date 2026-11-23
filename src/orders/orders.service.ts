@@ -1,23 +1,54 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { OrderStatus, Role, CashRegisterStatus } from '@prisma/client';
+import {
+  OrderStatus,
+  OrderType,
+  Role,
+  CashRegisterStatus,
+} from '@prisma/client';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 
 @Injectable()
 export class OrdersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(createOrderDto: CreateOrderDto, userId: number) {
-    const { branchId, items } = createOrderDto;
+  private getUserId(currentUser: any): number {
+    return currentUser.sub ?? currentUser.userId ?? currentUser.id;
+  }
 
-    // 1. Verificar existencia de la sucursal
+  async create(createOrderDto: CreateOrderDto, currentUser: any) {
+    const { branchId, items } = createOrderDto;
+    const orderType = createOrderDto.type ?? OrderType.LOCAL;
+    const isDelivery = orderType === OrderType.DOMICILIO;
+    const userId = this.getUserId(currentUser);
+
+    // 1. Validar aislamiento por sucursal si no es ADMIN_GENERAL
+    if (currentUser.role !== Role.ADMIN_GENERAL && currentUser.branchId !== branchId) {
+      throw new ForbiddenException(
+        'No puedes crear órdenes en una sucursal distinta a la tuya.',
+      );
+    }
+
+    // 2. Validar campos obligatorios según el tipo de orden
+    if (isDelivery && (!createOrderDto.customerName?.trim() || !createOrderDto.address?.trim())) {
+      throw new BadRequestException(
+        'Para pedidos a domicilio se requieren customerName y address.',
+      );
+    }
+
+    // 3. Verificar existencia de la sucursal
     const branch = await this.prisma.branch.findUnique({ where: { id: branchId } });
     if (!branch) {
       throw new NotFoundException(`Sucursal con ID ${branchId} no encontrada`);
     }
 
-    // 2. Verificar que haya una caja abierta en la sucursal
+    // 4. Verificar que haya una caja abierta en la sucursal
     const activeRegister = await this.prisma.cashRegister.findFirst({
       where: {
         branchId,
@@ -27,23 +58,23 @@ export class OrdersService {
 
     if (!activeRegister) {
       throw new BadRequestException(
-        'No hay una caja abierta en esta sucursal. No se pueden crear órdenes.'
+        'No hay una caja abierta en esta sucursal. No se pueden crear órdenes.',
       );
     }
 
-    // 3. Calcular total
+    // 5. Calcular total y validar productos
     let total = 0;
-    const orderItemsData = [];
+    const orderItemsData: { productId: number; quantity: number }[] = [];
 
     for (const item of items) {
-      const product = await this.prisma.product.findUnique({ 
-        where: { id: item.productId } 
+      const product = await this.prisma.product.findUnique({
+        where: { id: item.productId },
       });
-      
+
       if (!product) {
         throw new NotFoundException(`Producto con ID ${item.productId} no encontrado`);
       }
-      
+
       const itemPrice = Number(product.price);
       total += itemPrice * item.quantity;
 
@@ -53,12 +84,17 @@ export class OrdersService {
       });
     }
 
-    // 4. Crear la orden asociada a la caja activa
+    // 6. Crear la orden
     return this.prisma.order.create({
       data: {
+        type: orderType,
+        customerName: isDelivery
+          ? createOrderDto.customerName!.trim()
+          : createOrderDto.customerName?.trim() || 'Mostrador',
+        address: isDelivery ? createOrderDto.address!.trim() : null,
         userId,
         branchId,
-        cashRegisterId: activeRegister.id, // Asociar la orden a la caja activa
+        cashRegisterId: activeRegister.id,
         total,
         status: OrderStatus.PENDIENTE,
         items: {
@@ -68,7 +104,7 @@ export class OrdersService {
       include: {
         user: { select: { id: true, name: true, email: true } },
         branch: true,
-        cashRegister: true, // Incluir información de la caja
+        cashRegister: true,
         items: {
           include: {
             product: true,
@@ -78,8 +114,15 @@ export class OrdersService {
     });
   }
 
-  async findAll() {
+  async findAll(currentUser: any) {
+    const where =
+      currentUser.role === Role.ADMIN_GENERAL
+        ? {}
+        : { branchId: currentUser.branchId ?? -1 };
+
     return this.prisma.order.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
       include: {
         user: { select: { id: true, name: true, email: true } },
         branch: true,
@@ -89,7 +132,7 @@ export class OrdersService {
     });
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, currentUser: any) {
     const order = await this.prisma.order.findUnique({
       where: { id },
       include: {
@@ -102,13 +145,20 @@ export class OrdersService {
 
     if (!order) {
       throw new NotFoundException(`Pedido con ID ${id} no encontrado`);
+    }
+
+    if (currentUser.role !== Role.ADMIN_GENERAL && order.branchId !== currentUser.branchId) {
+      throw new ForbiddenException('No tienes permiso para consultar órdenes de otra sucursal.');
     }
 
     return order;
   }
 
-  async updateStatus(id: number, updateOrderStatusDto: UpdateOrderStatusDto, userRole: Role) {
-    // Obtener la orden con su caja asociada
+  async updateStatus(
+    id: number,
+    updateOrderStatusDto: UpdateOrderStatusDto,
+    currentUser: any,
+  ) {
     const order = await this.prisma.order.findUnique({
       where: { id },
       include: {
@@ -120,17 +170,20 @@ export class OrdersService {
       throw new NotFoundException(`Pedido con ID ${id} no encontrado`);
     }
 
-    const newStatus: OrderStatus = updateOrderStatusDto.status;
+    if (currentUser.role !== Role.ADMIN_GENERAL && order.branchId !== currentUser.branchId) {
+      throw new ForbiddenException('No puedes modificar órdenes de otra sucursal.');
+    }
 
-    // Arreglo de estados permitidos para Cajero y Repartidor
+    const newStatus: OrderStatus = updateOrderStatusDto.status;
+    const userRole: Role = currentUser.role;
+
     const allowedForCajeroAndRepartidor: OrderStatus[] = [
       OrderStatus.ENVIADO,
       OrderStatus.ENTREGADO,
     ];
 
-    // Validación de permisos por rol para el cambio de estado
-    if (userRole === Role.GERENTE) {
-      // El Gerente puede cambiar a cualquier estado
+    if (userRole === Role.GERENTE || userRole === Role.ADMIN_GENERAL) {
+      // Gerente y Admin General pueden cambiar a cualquier estado
     } else if (userRole === Role.CAJERO || userRole === Role.REPARTIDOR) {
       if (!allowedForCajeroAndRepartidor.includes(newStatus)) {
         throw new ForbiddenException(
@@ -149,7 +202,6 @@ export class OrdersService {
 
     // Si la orden se marca como ENTREGADO, actualizar la caja
     if (newStatus === OrderStatus.ENTREGADO && order.cashRegisterId) {
-      // Verificar que la caja aún esté abierta
       const cashRegister = await this.prisma.cashRegister.findUnique({
         where: { id: order.cashRegisterId },
       });
@@ -160,14 +212,13 @@ export class OrdersService {
 
       if (cashRegister.status === CashRegisterStatus.CLOSED) {
         throw new BadRequestException(
-          'La caja asociada a esta orden ya está cerrada. No se puede marcar como entregada.'
+          'La caja asociada a esta orden ya está cerrada. No se puede marcar como entregada.',
         );
       }
 
-      // Sumar el total de la orden al generatedAmount de la caja
       const currentGenerated = Number(cashRegister.generatedAmount) || 0;
       const orderTotal = Number(order.total);
-      
+
       await this.prisma.cashRegister.update({
         where: { id: order.cashRegisterId },
         data: {
@@ -177,7 +228,6 @@ export class OrdersService {
       });
     }
 
-    // Actualizar el estado de la orden
     return this.prisma.order.update({
       where: { id },
       data: { status: newStatus },

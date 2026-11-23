@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE `orders` ADD COLUMN `type` ENUM('LOCAL', 'DOMICILIO') NOT NULL DEFAULT 'LOCAL',
+    MODIFY `address` VARCHAR(191) NULL,
+    MODIFY `customer_name` VARCHAR(191) NULL;

@@ -1,12 +1,14 @@
-import { IsEmail, IsNotEmpty, IsString, IsIn, MinLength, IsOptional, IsInt } from 'class-validator';
+// src/auth/dto/register.dto.ts
+import { IsString, IsEmail, IsNotEmpty, IsEnum, IsInt, MinLength, ValidateIf } from 'class-validator';
+import { Role } from '@prisma/client';
 
 export class RegisterDto {
   @IsString()
   @IsNotEmpty({ message: 'El nombre es obligatorio' })
   name: string;
 
-  @IsEmail({}, { message: 'El email no es válido' })
-  @IsNotEmpty({ message: 'El email es obligatorio' })
+  @IsEmail({}, { message: 'El formato del correo electrónico es inválido' })
+  @IsNotEmpty({ message: 'El correo es obligatorio' })
   email: string;
 
   @IsString()
@@ -14,13 +16,13 @@ export class RegisterDto {
   @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })
   password: string;
 
-  @IsOptional()
-  @IsIn(['CAJERO', 'COCINA', 'REPARTIDOR', 'GERENTE'], { 
-    message: 'El rol debe ser: CAJERO, COCINA, REPARTIDOR o GERENTE' 
-  })
-  role?: 'CAJERO' | 'COCINA' | 'REPARTIDOR' | 'GERENTE';
+  @IsEnum(Role, { message: 'El rol especificado no es válido' })
+  @IsNotEmpty({ message: 'El rol es obligatorio' })
+  role: Role;
 
-  @IsOptional()
+  // Obligatorio para todos los roles, EXCEPTO para ADMIN_GENERAL
+  @ValidateIf((o) => o.role !== Role.ADMIN_GENERAL)
   @IsInt({ message: 'El ID de la sucursal debe ser un número entero' })
-  branchId?: number; // 👈 NUEVO: Permite asociar o registrar con una sucursal opcionalmente
+  @IsNotEmpty({ message: 'La sucursal es obligatoria para este rol' })
+  branchId: number;
 }

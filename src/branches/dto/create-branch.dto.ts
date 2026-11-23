@@ -1,11 +1,11 @@
 import { IsNotEmpty, IsString } from 'class-validator';
 
 export class CreateBranchDto {
-  @IsString()
   @IsNotEmpty({ message: 'El nombre de la sucursal es obligatorio' })
+  @IsString({ message: 'El nombre debe ser una cadena de texto' })
   name: string;
 
-  @IsString()
-  @IsNotEmpty({ message: 'La dirección es obligatoria' })
+  @IsNotEmpty({ message: 'La dirección de la sucursal es obligatoria' })
+  @IsString({ message: 'La dirección debe ser una cadena de texto' })
   address: string;
 }
