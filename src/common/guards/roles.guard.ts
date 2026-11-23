@@ -1,31 +1,56 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
+import { Role } from '@prisma/client'; 
+import { JwtUser } from '../decorators/current-user.decorator'; 
+
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  private readonly logger = new Logger(RolesGuard.name);
+
+  constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    // Obtener los roles requeridos definidos en el decorador @Roles()
-    const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
+    // 1. Roles requeridos (método gana sobre clase)
+    const requiredRoles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
 
-    // Si la ruta no exige roles específicos, se permite el acceso
-    if (!requiredRoles) {
+    // 2. Sin @Roles o @Roles() vacío → ruta pública respecto a roles
+    if (!requiredRoles || requiredRoles.length === 0) {
       return true;
     }
 
-    // Obtener la información del usuario adjuntada por el JwtAuthGuard
-    const { user } = context.switchToHttp().getRequest();
+    // 3. Usuario adjuntado por JwtAuthGuard
+    const request = context.switchToHttp().getRequest();
+    const user: JwtUser | undefined = request.user;
 
-    // Verificar si el usuario tiene el rol necesario
-    const hasRole = requiredRoles.includes(user?.role);
+    if (!user) {
+      throw new UnauthorizedException(
+        'Debes iniciar sesión para acceder a este recurso',
+      );
+    }
 
-    if (!hasRole) {
-      throw new ForbiddenException('No tienes permisos suficientes (Se requiere rol GERENTE)');
+    // 4. Verificación de rol
+    if (!requiredRoles.includes(user.role)) {
+      this.logger.warn(
+        `Acceso denegado: user=${user.email} role=${user.role} ` +
+          `ruta=${request.method} ${request.url} ` +
+          `requerido=[${requiredRoles.join(', ')}]`,
+      );
+
+      throw new ForbiddenException(
+        `No tienes permisos suficientes. Roles requeridos: ${requiredRoles.join(', ')}`,
+      );
     }
 
     return true;

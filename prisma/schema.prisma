@@ -8,6 +8,7 @@ datasource db {
 }
 
 enum Role {
+  ADMIN_GENERAL
   GERENTE
   CAJERO
   COCINA
@@ -54,23 +55,29 @@ enum OrderStatus {
   CANCELADO
 }
 
-model Order {
-  id              Int          @id @default(autoincrement())
-  userId          Int
-  user            User         @relation(fields: [userId], references: [id])
-  branchId        Int
-  branch          Branch       @relation(fields: [branchId], references: [id])
-  cashRegisterId  Int?         @map("cash_register_id") // NUEVO: Relación con la caja
-  cashRegister    CashRegister? @relation(fields: [cashRegisterId], references: [id]) // NUEVO
-  total           Decimal      @db.Decimal(10, 2)
-  status          OrderStatus  @default(PENDIENTE)
-  items           OrderItem[]
-  createdAt       DateTime     @default(now())
-  
-  @@map("orders")
+enum OrderType {
+  LOCAL
+  DOMICILIO
 }
 
+model Order {
+  id              Int           @id @default(autoincrement())
+  type            OrderType     @default(LOCAL)
+  userId          Int
+  user            User          @relation(fields: [userId], references: [id])
+  branchId        Int
+  branch          Branch        @relation(fields: [branchId], references: [id])
+  cashRegisterId  Int?          @map("cash_register_id")
+  cashRegister    CashRegister? @relation(fields: [cashRegisterId], references: [id])
+  customerName    String?       @map("customer_name")
+  address         String?
+  total           Decimal       @db.Decimal(10, 2)
+  status          OrderStatus   @default(PENDIENTE)
+  items           OrderItem[]
+  createdAt       DateTime      @default(now())
 
+  @@map("orders")
+}
 model OrderItem {
   id        Int     @id @default(autoincrement())
   orderId   Int
@@ -97,7 +104,7 @@ model CashRegister {
   openedBy        User               @relation(fields: [openedById], references: [id])
   branchId        Int
   branch          Branch             @relation(fields: [branchId], references: [id])
-  orders          Order[]            // NUEVO: Relación con órdenes
+  orders          Order[]            
   
   @@map("cash_registers")
 }

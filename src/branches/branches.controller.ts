@@ -1,54 +1,49 @@
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Put, 
-  Delete, 
-  Body, 
-  Param, 
-  ParseIntPipe, 
-  UseGuards 
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, ParseIntPipe } from '@nestjs/common';
 import { BranchesService } from './branches.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
+
+import { JwtAuthGuard } from '../auth/jwt-auth.guard'; // 👈 Ajustado
+import { RolesGuard } from '../common/guards/roles.guard';        
 import { Roles } from '../common/decorators/roles.decorator';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { AuthGuard } from '@nestjs/passport'; // <-- Importar AuthGuard
+
 
 @Controller('branches')
-@UseGuards(AuthGuard('jwt'), RolesGuard) // <-- Primero autentica, luego verifica roles
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class BranchesController {
   constructor(private readonly branchesService: BranchesService) {}
 
   @Post()
-  @Roles('GERENTE')
-  create(@Body() createBranchDto: CreateBranchDto) {
-    return this.branchesService.create(createBranchDto);
+  @Roles('ADMIN_GENERAL')
+  create(@Body() createBranchDto: CreateBranchDto, @Req() req: any) {
+    return this.branchesService.create(createBranchDto, req.user);
   }
 
   @Get()
-  findAll() {
-    return this.branchesService.findAll();
+  @Roles('ADMIN_GENERAL', 'GERENTE')
+  findAll(@Req() req: any) {
+    return this.branchesService.findAll(req.user);
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.branchesService.findOne(id);
+  @Roles('ADMIN_GENERAL', 'GERENTE', 'CAJERO', 'COCINA', 'REPARTIDOR')
+  findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return this.branchesService.findOne(id, req.user);
   }
 
-  @Put(':id')
-  @Roles('GERENTE')
+  @Patch(':id')
+  @Roles('ADMIN_GENERAL', 'GERENTE')
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateBranchDto: UpdateBranchDto,
+    @Req() req: any,
   ) {
-    return this.branchesService.update(id, updateBranchDto);
+    return this.branchesService.update(id, updateBranchDto, req.user);
   }
 
   @Delete(':id')
-  @Roles('GERENTE')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.branchesService.remove(id);
+  @Roles('ADMIN_GENERAL')
+  remove(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return this.branchesService.remove(id, req.user);
   }
 }

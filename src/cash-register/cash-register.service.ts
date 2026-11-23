@@ -119,4 +119,16 @@ export class CashRegisterService {
 
     return register;
   }
+
+  // Obtener todo el historial de cajas de una sucursal
+  async findAllByBranch(branchId: number) {
+    return this.prisma.cashRegister.findMany({
+      where: { branchId },
+      orderBy: { openedAt: 'desc' }, // Las más recientes primero
+      include: {
+        openedBy: { select: { id: true, name: true, email: true } },
+        branch: true,
+      },
+    });
+  }
 }
